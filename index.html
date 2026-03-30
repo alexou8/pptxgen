@@ -387,6 +387,146 @@
 
     #sb-problems { gap: 8px; }
     #sb-warnings { opacity: 0.85; }
+
+    /* ── Main content (editor + preview side-by-side) ───────────────────── */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .editor-area {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Live-preview panel ─────────────────────────────────────────────── */
+    .preview-panel {
+      width: 356px;
+      background: #1e1e1e;
+      border-left: 1px solid #3d3d3d;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .preview-panel.hidden { display: none; }
+
+    .preview-panel-header {
+      height: 27px;
+      background: #252526;
+      display: flex;
+      align-items: center;
+      padding: 0 6px 0 10px;
+      gap: 6px;
+      border-bottom: 1px solid #1e1e1e;
+      flex-shrink: 0;
+    }
+
+    .preview-panel-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #cccccc;
+      border-bottom: 1px solid #007acc;
+      line-height: 27px;
+      user-select: none;
+      padding: 0 2px;
+      flex-shrink: 0;
+    }
+
+    .preview-status {
+      flex: 1;
+      font-size: 11px;
+      color: #969696;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .preview-refresh-btn {
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: none;
+      background: transparent;
+      color: #969696;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 2px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .preview-refresh-btn:hover:not(:disabled) {
+      background: #2a2d2e;
+      color: #cccccc;
+    }
+
+    .preview-slides-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      scrollbar-width: thin;
+      scrollbar-color: #424242 #1e1e1e;
+    }
+
+    .preview-slides-container::-webkit-scrollbar { width: 8px; }
+    .preview-slides-container::-webkit-scrollbar-track { background: #1e1e1e; }
+    .preview-slides-container::-webkit-scrollbar-thumb { background: #424242; border-radius: 4px; }
+
+    .preview-slide-wrapper { flex-shrink: 0; }
+
+    .preview-slide-num {
+      font-size: 10px;
+      color: #969696;
+      margin-bottom: 3px;
+      user-select: none;
+    }
+
+    .preview-slide {
+      border: 1px solid #424242;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+      overflow: hidden;
+      background: #ffffff;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .preview-placeholder {
+      font-size: 12px;
+      color: #969696;
+      line-height: 1.6;
+    }
+
+    .preview-placeholder code {
+      font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+      color: #9cdcfe;
+    }
+
+    .preview-error {
+      font-size: 12px;
+      color: #f44747;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    /* Preview toggle button — highlighted while panel is open */
+    #btn-preview.active {
+      background: #37373d;
+      border-color: #454545;
+    }
   </style>
 </head>
 <body>
@@ -411,6 +551,7 @@
     </div>
     <div class="toolbar">
       <button id="btn-run">Run &amp; Download</button>
+      <button id="btn-preview">Preview</button>
       <button id="btn-reset">Reset</button>
       <button id="btn-clear">Clear</button>
       <div class="toolbar-sep"></div>
@@ -421,10 +562,29 @@
     </div>
   </div>
 
-  <!-- Editor -->
-  <div class="editor-wrapper">
-    <textarea id="editor"></textarea>
-  </div>
+  <!-- Main content: editor on the left, live-preview panel on the right -->
+  <div class="main-content">
+
+    <!-- Editor area -->
+    <div class="editor-area">
+      <div class="editor-wrapper">
+        <textarea id="editor"></textarea>
+      </div>
+    </div>
+
+    <!-- Live-preview panel (hidden by default; toggled by the Preview button) -->
+    <div id="preview-panel" class="preview-panel hidden">
+      <div class="preview-panel-header">
+        <span class="preview-panel-title">Preview</span>
+        <span class="preview-status" id="preview-status"></span>
+        <button class="preview-refresh-btn" id="btn-preview-refresh" title="Refresh preview">↻</button>
+      </div>
+      <div class="preview-slides-container" id="preview-slides">
+        <p class="preview-placeholder">Click <strong>Preview</strong> in the toolbar to see a live preview of your slides.</p>
+      </div>
+    </div>
+
+  </div><!-- /.main-content -->
 
   <!-- Output panel -->
   <div class="panel">
@@ -552,6 +712,270 @@ await pres.writeFile({ fileName: FILENAME });
 `.trim();
 
 // ---------------------------------------------------------------------------
+// Live Preview — PreviewPptxGenJS + slide renderer
+// ---------------------------------------------------------------------------
+
+// Subclass that intercepts writeFile() so that preview runs never trigger a
+// browser download, but the finished Presentation object is still accessible.
+let _lastPreviewPres = null;
+class PreviewPptxGenJS extends PptxGenJS {
+  async writeFile(_opts) {
+    _lastPreviewPres = this;
+    // Intentionally do not call super.writeFile() — no download in preview mode.
+  }
+}
+
+const PREVIEW_SLIDE_W_PX = 320; // rendered slide width (px)
+const EMU_PER_INCH       = 914400;
+const PTS_PER_INCH       = 72;   // typographic points per inch
+const DEF_SLIDE_W_IN     = 10;      // default LAYOUT_16x9 width  (inches)
+const DEF_SLIDE_H_IN     = 5.625;   // default LAYOUT_16x9 height (inches)
+
+function getSlideSize(pres) {
+  const layout = pres.presLayout;
+  if (layout && typeof layout === "object" && layout.width) {
+    return {
+      w: layout.width  / EMU_PER_INCH,
+      h: layout.height / EMU_PER_INCH,
+    };
+  }
+  return { w: DEF_SLIDE_W_IN, h: DEF_SLIDE_H_IN };
+}
+
+// Convert a position/size value (inches or "N%") to pixels.
+function toPx(val, totalIn, scale) {
+  if (typeof val === "string" && val.endsWith("%")) {
+    return totalIn * scale * parseFloat(val) / 100;
+  }
+  if (typeof val === "number") return val * scale;
+  return 0;
+}
+
+// Recursively flatten PptxGenJS's internal text structure to a plain string.
+function extractText(data) {
+  if (!data) return "";
+  if (typeof data === "string") return data;
+  if (!Array.isArray(data)) {
+    return typeof data.text === "string" ? data.text : "";
+  }
+  const parts = [];
+  for (const item of data) {
+    if (!item) continue;
+    if (typeof item === "string") {
+      parts.push(item);
+    } else if (Array.isArray(item)) {
+      parts.push(extractText(item));
+    } else if (typeof item === "object") {
+      if (typeof item.text === "string") {
+        parts.push(item.text);
+      } else if (Array.isArray(item.text)) {
+        parts.push(extractText(item.text));
+      }
+    }
+  }
+  return parts.join("\n");
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// Normalise a hex colour string — strip leading "#", return empty if falsy.
+function normColor(c) {
+  return c ? String(c).replace(/^#/, "") : "";
+}
+
+// Render one slide object as an absolutely-positioned element.
+function renderSlideObj(obj, slideW, slideH, scale) {
+  if (!obj || !obj.options) return null;
+  const opts = obj.options;
+
+  const x = toPx(opts.x, slideW, scale);
+  const y = toPx(opts.y, slideH, scale);
+  const w = toPx(opts.w, slideW, scale);
+  const h = toPx(opts.h, slideH, scale);
+  if (w <= 0 || h <= 0) return null;
+
+  const el = document.createElement("div");
+  el.style.cssText =
+    "position:absolute;" +
+    "left:"   + x + "px;" +
+    "top:"    + y + "px;" +
+    "width:"  + w + "px;" +
+    "height:" + h + "px;" +
+    "overflow:hidden;";
+
+  // Fill / background colour
+  const fill = opts.fill;
+  if (fill) {
+    const fc = normColor(typeof fill === "string" ? fill : fill.color);
+    if (fc) el.style.background = "#" + fc;
+  }
+
+  // Outline / border
+  const line = opts.line;
+  if (line) {
+    const lc = normColor(typeof line === "string" ? line : line.color);
+    // line.width is in points; map to pixels (1 pt ≈ scale/72 px)
+    const lw = Math.max(0.5, ((line.width || 1) / PTS_PER_INCH) * scale);
+    if (lc) {
+      el.style.border    = lw + "px solid #" + lc;
+      el.style.boxSizing = "border-box";
+    }
+  }
+
+  // Text content
+  const rawText = extractText(obj.text);
+  if (rawText.trim()) {
+    el.style.display        = "flex";
+    el.style.flexDirection  = "column";
+    const va = opts.valign || "top";
+    el.style.justifyContent =
+      va === "middle" ? "center" : va === "bottom" ? "flex-end" : "flex-start";
+
+    const textEl = document.createElement("div");
+    textEl.style.width      = "100%";
+    textEl.style.textAlign  = opts.align || "left";
+    textEl.style.whiteSpace = "pre-wrap";
+    textEl.style.wordBreak  = "break-word";
+    textEl.style.lineHeight = "1.25";
+    textEl.style.overflow   = "hidden";
+
+    // Font size: convert points → pixels via the current scale
+    const fsPt = opts.fontSize || 12;
+    textEl.style.fontSize = Math.max(6, (fsPt / PTS_PER_INCH) * scale) + "px";
+
+    const tc = normColor(opts.color);
+    if (tc)           textEl.style.color          = "#" + tc;
+    if (opts.bold)    textEl.style.fontWeight      = "bold";
+    if (opts.italic)  textEl.style.fontStyle       = "italic";
+    if (opts.underline && opts.underline !== false)
+                      textEl.style.textDecoration  = "underline";
+
+    textEl.textContent = rawText;
+    el.appendChild(textEl);
+  }
+
+  return el;
+}
+
+// Render a full slide as a positioned HTML element.
+function renderSlideEl(slide, slideW, slideH, scale) {
+  const el = document.createElement("div");
+  el.className = "preview-slide";
+  el.style.width  = PREVIEW_SLIDE_W_PX + "px";
+  el.style.height = Math.round(slideH * scale) + "px";
+
+  // Slide background
+  const bg = slide.background;
+  if (bg) {
+    const bc = normColor(bg.color || bg.fill);
+    if (bc) el.style.background = "#" + bc;
+  }
+
+  // Render each slide object
+  for (const obj of (slide._slideObjects || [])) {
+    const child = renderSlideObj(obj, slideW, slideH, scale);
+    if (child) el.appendChild(child);
+  }
+  return el;
+}
+
+// ---------------------------------------------------------------------------
+// Preview state & DOM references (populated after DOMContentLoaded)
+// ---------------------------------------------------------------------------
+let previewVisible    = false;
+let previewDebounceId = null;
+const PREVIEW_DEBOUNCE_MS = 1000;
+
+const previewPanel          = document.getElementById("preview-panel");
+const previewSlidesContainer = document.getElementById("preview-slides");
+const previewStatusEl       = document.getElementById("preview-status");
+const btnPreviewToggle      = document.getElementById("btn-preview");
+const btnPreviewRefresh     = document.getElementById("btn-preview-refresh");
+
+function setPreviewStatus(msg) {
+  previewStatusEl.textContent = msg;
+}
+
+// Run user code via PreviewPptxGenJS (no download) then render the slides.
+async function runPreview() {
+  clearTimeout(previewDebounceId);
+  const code = cm.getValue().trim();
+  if (!code) {
+    previewSlidesContainer.innerHTML =
+      "<p class=\"preview-placeholder\">Editor is empty.</p>";
+    setPreviewStatus("");
+    return;
+  }
+
+  setPreviewStatus("Generating\u2026");
+  previewSlidesContainer.innerHTML = "";
+
+  try {
+    _lastPreviewPres = null;
+    const fn = new Function(
+      "PptxGenJS", "FILENAME",
+      "\"use strict\"; return (async () => { " + code + " })();"
+    );
+    await fn(PreviewPptxGenJS, "preview.pptx");
+
+    const pres = _lastPreviewPres;
+    if (!pres || !pres.slides || pres.slides.length === 0) {
+      previewSlidesContainer.innerHTML =
+        "<p class=\"preview-placeholder\">No slides found.<br>" +
+        "Make sure your code calls <code>pres.writeFile()</code>.</p>";
+      setPreviewStatus("");
+      return;
+    }
+
+    const { w: slideW, h: slideH } = getSlideSize(pres);
+    const scale = PREVIEW_SLIDE_W_PX / slideW;
+
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < pres.slides.length; i++) {
+      const wrap = document.createElement("div");
+      wrap.className = "preview-slide-wrapper";
+
+      const num = document.createElement("div");
+      num.className   = "preview-slide-num";
+      num.textContent = "Slide " + (i + 1);
+      wrap.appendChild(num);
+      wrap.appendChild(renderSlideEl(pres.slides[i], slideW, slideH, scale));
+      frag.appendChild(wrap);
+    }
+    previewSlidesContainer.appendChild(frag);
+    setPreviewStatus(
+      pres.slides.length + " slide" + (pres.slides.length !== 1 ? "s" : "")
+    );
+  } catch (err) {
+    previewSlidesContainer.innerHTML =
+      "<p class=\"preview-error\">\u26A0 " + escapeHtml(err.message || String(err)) + "</p>";
+    setPreviewStatus("Error");
+    console.warn("[preview]", err);
+  }
+}
+
+// Debounce wrapper — auto-refresh while the panel is visible.
+function schedulePreview() {
+  if (!previewVisible) return;
+  clearTimeout(previewDebounceId);
+  previewDebounceId = setTimeout(runPreview, PREVIEW_DEBOUNCE_MS);
+}
+
+// Toggle the preview panel open / closed.
+function togglePreview() {
+  previewVisible = !previewVisible;
+  previewPanel.classList.toggle("hidden", !previewVisible);
+  btnPreviewToggle.classList.toggle("active", previewVisible);
+  cm.refresh(); // CodeMirror must recalculate its width
+  if (previewVisible) runPreview();
+}
+
+// ---------------------------------------------------------------------------
 // Custom lint function
 // Wraps user code in an async IIFE before passing to JSHint so that
 // top-level `await` (valid in our execution context) is not flagged.
@@ -659,6 +1083,9 @@ cm.on("updateLinting", (_, annotations) => {
   sbProblems.classList.toggle("has-errors", errors > 0);
 });
 
+// Auto-refresh the live preview whenever the code changes.
+cm.on("change", schedulePreview);
+
 // ---------------------------------------------------------------------------
 // UI helpers
 // ---------------------------------------------------------------------------
@@ -717,6 +1144,10 @@ document.getElementById("btn-clear").addEventListener("click", () => {
   cm.setValue("");
   setOutput("Editor cleared.", "info");
 });
+
+// Preview panel button handlers
+btnPreviewToggle.addEventListener("click", togglePreview);
+btnPreviewRefresh.addEventListener("click", runPreview);
 </script>
 </body>
 </html>

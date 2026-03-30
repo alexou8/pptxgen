@@ -1100,47 +1100,80 @@ function applyShapeTypeStyle(el, shape, opts, w, h, scale) {
   }
 }
 
-// Render rich text runs as child <span> elements inside textEl.
-// Each run in obj.text may carry its own bold/italic/color/fontSize overrides.
+// Render rich text content as paragraph <div>s inside textEl.
+// Each top-level item in obj.text is a paragraph; paragraphs may contain inline runs.
 function renderTextContent(obj, opts, scale, textEl) {
   const runs = obj.text;
-  if (!Array.isArray(runs) || runs.length === 0) {
-    textEl.textContent = extractText(runs);
-    return;
-  }
 
-  // Check whether any run carries per-run formatting options.
-  const hasRich = runs.some(
-    r => r && typeof r === "object" && r.options &&
-      (r.options.color != null || r.options.bold != null ||
-       r.options.italic != null || r.options.underline != null ||
-       r.options.fontSize != null)
-  );
-
-  if (!hasRich) {
-    textEl.textContent = extractText(runs);
-    return;
-  }
-
-  // Render each run as a <span> inheriting container defaults.
-  for (const run of runs) {
-    if (!run) continue;
-    const runText = typeof run === "string" ? run : (run.text || "");
-    if (!runText) continue;
+  // Build a <span> for a single inline run with its per-run formatting.
+  function makeRunSpan(run) {
     const span = document.createElement("span");
+    const runText = typeof run === "string" ? run : (run.text || "");
     span.textContent = runText;
     if (typeof run === "object" && run.options) {
       const ro = run.options;
       const rc = normColor(ro.color);
       if (rc) span.style.color = "#" + rc;
-      if (ro.bold != null)    span.style.fontWeight     = ro.bold    ? "bold"      : "normal";
-      if (ro.italic != null)  span.style.fontStyle      = ro.italic  ? "italic"    : "normal";
+      if (ro.bold != null)   span.style.fontWeight    = ro.bold   ? "bold"   : "normal";
+      if (ro.italic != null) span.style.fontStyle     = ro.italic ? "italic" : "normal";
       if (ro.underline && ro.underline !== false)
-                              span.style.textDecoration = "underline";
+                             span.style.textDecoration = "underline";
       if (typeof ro.fontSize === "number")
         span.style.fontSize = Math.max(6, (ro.fontSize / PTS_PER_INCH) * scale) + "px";
+      if (ro.fontFace) span.style.fontFamily =
+        "'" + ro.fontFace + "', 'Calibri', Helvetica, Arial, sans-serif";
+      if (typeof ro.charSpacing === "number")
+        span.style.letterSpacing = (ro.charSpacing / 100).toFixed(3) + "em";
     }
-    textEl.appendChild(span);
+    return span;
+  }
+
+  // Outer-level paragraph spacing (points → px)
+  const spaceBefore = typeof opts.paraSpaceBefore === "number"
+    ? (opts.paraSpaceBefore / PTS_PER_INCH) * scale : 0;
+  const spaceAfter  = typeof opts.paraSpaceAfter  === "number"
+    ? (opts.paraSpaceAfter  / PTS_PER_INCH) * scale : 0;
+
+  if (!Array.isArray(runs) || runs.length === 0) {
+    textEl.textContent = extractText(runs);
+    return;
+  }
+
+  for (let pi = 0; pi < runs.length; pi++) {
+    const para = runs[pi];
+    if (para == null) continue;
+
+    const paraDiv = document.createElement("div");
+
+    // Inter-paragraph spacing
+    if (pi > 0 && spaceBefore > 0) paraDiv.style.marginTop    = Math.round(spaceBefore) + "px";
+    if (spaceAfter > 0)            paraDiv.style.marginBottom = Math.round(spaceAfter)  + "px";
+
+    // Per-paragraph option overrides
+    const po = (typeof para === "object" && para.options) ? para.options : {};
+    if (po.align) paraDiv.style.textAlign = po.align;
+    if (typeof po.paraSpaceBefore === "number" && pi > 0)
+      paraDiv.style.marginTop    = Math.round((po.paraSpaceBefore / PTS_PER_INCH) * scale) + "px";
+    if (typeof po.paraSpaceAfter  === "number")
+      paraDiv.style.marginBottom = Math.round((po.paraSpaceAfter  / PTS_PER_INCH) * scale) + "px";
+    if (typeof po.lineSpacing === "number")
+      paraDiv.style.lineHeight = (po.lineSpacing / 100).toFixed(2);
+    if (typeof po.fontSize === "number")
+      paraDiv.style.fontSize = Math.max(6, (po.fontSize / PTS_PER_INCH) * scale) + "px";
+
+    // Paragraph content: string | {text, options} | array of inline runs
+    const content = typeof para === "string" ? para : (para && para.text);
+    if (typeof content === "string") {
+      paraDiv.appendChild(makeRunSpan(para));
+    } else if (Array.isArray(content)) {
+      for (const run of content) {
+        if (run != null) paraDiv.appendChild(makeRunSpan(run));
+      }
+    } else {
+      paraDiv.textContent = extractText(para);
+    }
+
+    textEl.appendChild(paraDiv);
   }
 }
 
@@ -1333,31 +1366,42 @@ function renderSlideObj(obj, slideW, slideH, scale, slide) {
   // Text content
   const rawText = extractText(obj.text);
   if (rawText.trim()) {
+    // Body inset — defaults match PowerPoint (0.1" L/R, 0.05" T/B)
+    const bp   = opts._bodyProp || {};
+    const insL = typeof bp.lIns === "number" ? (bp.lIns / EMU_PER_INCH) * scale : 0.1 * scale;
+    const insR = typeof bp.rIns === "number" ? (bp.rIns / EMU_PER_INCH) * scale : 0.1 * scale;
+    const insT = typeof bp.tIns === "number" ? (bp.tIns / EMU_PER_INCH) * scale : 0.05 * scale;
+    const insB = typeof bp.bIns === "number" ? (bp.bIns / EMU_PER_INCH) * scale : 0.05 * scale;
+
     el.style.display        = "flex";
     el.style.flexDirection  = "column";
-    const va = opts.valign || (opts._bodyProp && opts._bodyProp.anchor === "b" ? "bottom"
-                              : opts._bodyProp && opts._bodyProp.anchor === "ctr" ? "middle" : "top");
-    el.style.justifyContent =
-      va === "middle" ? "center" : va === "bottom" ? "flex-end" : "flex-start";
+    el.style.padding        = insT + "px " + insR + "px " + insB + "px " + insL + "px";
+    const va = opts.valign || (bp.anchor === "b" ? "bottom" : bp.anchor === "ctr" ? "middle" : "top");
+    el.style.justifyContent = va === "middle" ? "center" : va === "bottom" ? "flex-end" : "flex-start";
 
     const textEl = document.createElement("div");
     textEl.style.width      = "100%";
     textEl.style.textAlign  = opts.align || "left";
     textEl.style.whiteSpace = "pre-wrap";
     textEl.style.wordBreak  = "break-word";
-    textEl.style.lineHeight = "1.25";
-    textEl.style.overflow   = "hidden";
+    textEl.style.lineHeight = typeof opts.lineSpacing === "number"
+      ? (opts.lineSpacing / 100).toFixed(2) : "1.15";
+    textEl.style.fontFamily = opts.fontFace
+      ? "'" + opts.fontFace + "', 'Calibri', Helvetica, Arial, sans-serif"
+      : "'Calibri', 'Trebuchet MS', Helvetica, Arial, sans-serif";
 
     // Font size: convert points → pixels via the current scale
     const fsPt = opts.fontSize || 12;
     textEl.style.fontSize = Math.max(6, (fsPt / PTS_PER_INCH) * scale) + "px";
 
     const tc = normColor(opts.color);
-    if (tc)           textEl.style.color          = "#" + tc;
-    if (opts.bold)    textEl.style.fontWeight      = "bold";
-    if (opts.italic)  textEl.style.fontStyle       = "italic";
+    if (tc)                          textEl.style.color          = "#" + tc;
+    if (opts.bold)                   textEl.style.fontWeight      = "bold";
+    if (opts.italic)                 textEl.style.fontStyle       = "italic";
     if (opts.underline && opts.underline !== false)
-                      textEl.style.textDecoration  = "underline";
+                                     textEl.style.textDecoration  = "underline";
+    if (typeof opts.charSpacing === "number")
+                                     textEl.style.letterSpacing   = (opts.charSpacing / 100).toFixed(3) + "em";
 
     renderTextContent(obj, opts, scale, textEl);
     el.appendChild(textEl);
@@ -1376,8 +1420,19 @@ function renderSlideEl(slide, slideW, slideH, scale, slideWPx) {
   // Slide background
   const bg = slide.background;
   if (bg) {
-    const bc = normColor(bg.color || bg.fill);
-    if (bc) el.style.background = "#" + bc;
+    if (bg.data) {
+      el.style.backgroundImage    = "url('" + bg.data + "')";
+      el.style.backgroundSize     = "cover";
+      el.style.backgroundPosition = "center";
+    } else if (bg.path &&
+               (bg.path.startsWith("http") || bg.path.startsWith("data:") || bg.path.startsWith("/"))) {
+      el.style.backgroundImage    = "url('" + bg.path + "')";
+      el.style.backgroundSize     = "cover";
+      el.style.backgroundPosition = "center";
+    } else {
+      const bc = normColor(bg.color || bg.fill);
+      if (bc) el.style.background = "#" + bc;
+    }
   }
 
   // Render each slide object (pass slide for image media lookup)

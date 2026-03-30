@@ -407,13 +407,13 @@
 
     /* ── Live-preview panel ─────────────────────────────────────────────── */
     .preview-panel {
-      width: 356px;
+      flex: 1;
+      min-width: 0;
       background: #1e1e1e;
       border-left: 1px solid #3d3d3d;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      flex-shrink: 0;
     }
 
     .preview-panel.hidden { display: none; }
@@ -496,6 +496,7 @@
     }
 
     .preview-slide {
+      position: relative;
       border: 1px solid #424242;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
       overflow: hidden;
@@ -725,7 +726,6 @@ class PreviewPptxGenJS extends PptxGenJS {
   }
 }
 
-const PREVIEW_SLIDE_W_PX = 320; // rendered slide width (px)
 const EMU_PER_INCH       = 914400;
 const PTS_PER_INCH       = 72;   // typographic points per inch
 const DEF_SLIDE_W_IN     = 10;      // default LAYOUT_16x9 width  (inches)
@@ -863,10 +863,10 @@ function renderSlideObj(obj, slideW, slideH, scale) {
 }
 
 // Render a full slide as a positioned HTML element.
-function renderSlideEl(slide, slideW, slideH, scale) {
+function renderSlideEl(slide, slideW, slideH, scale, slideWPx) {
   const el = document.createElement("div");
   el.className = "preview-slide";
-  el.style.width  = PREVIEW_SLIDE_W_PX + "px";
+  el.style.width  = slideWPx + "px";
   el.style.height = Math.round(slideH * scale) + "px";
 
   // Slide background
@@ -933,7 +933,11 @@ async function runPreview() {
     }
 
     const { w: slideW, h: slideH } = getSlideSize(pres);
-    const scale = PREVIEW_SLIDE_W_PX / slideW;
+    // Use the container's current width (minus 20px of horizontal padding) so slides
+    // fill the panel; enforce a 200px minimum to keep slides readable.
+    const containerW = previewSlidesContainer.clientWidth - 20;
+    const slideWPx   = Math.max(200, containerW);
+    const scale      = slideWPx / slideW;
 
     const frag = document.createDocumentFragment();
     for (let i = 0; i < pres.slides.length; i++) {
@@ -944,7 +948,7 @@ async function runPreview() {
       num.className   = "preview-slide-num";
       num.textContent = "Slide " + (i + 1);
       wrap.appendChild(num);
-      wrap.appendChild(renderSlideEl(pres.slides[i], slideW, slideH, scale));
+      wrap.appendChild(renderSlideEl(pres.slides[i], slideW, slideH, scale, slideWPx));
       frag.appendChild(wrap);
     }
     previewSlidesContainer.appendChild(frag);

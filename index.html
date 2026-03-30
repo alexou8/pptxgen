@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!--
     Security note: This playground executes the code you type directly in your
-    browser using new Function() (equivalent to eval).  Only run code you trust.
+    browser using new Function() (equivalent to eval). Only run code you trust.
     If you deploy this page publicly, ensure you understand that every visitor
     can execute arbitrary JavaScript in their own browser context.
     The Content-Security-Policy below restricts script/style sources to the
@@ -20,189 +20,432 @@
                  connect-src 'none';" />
   <title>PptxGen Playground</title>
 
-  <!-- CodeMirror – JavaScript syntax highlighting -->
+  <!-- CodeMirror core styles -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css" />
+  <!-- CodeMirror lint gutter + tooltip styles -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/lint/lint.min.css" />
 
   <style>
+    /* ── Reset ──────────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Base: full-viewport, no scroll ────────────────────────────────── */
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
 
     body {
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: #1e1e2e;
-      color: #cdd6f4;
-      min-height: 100vh;
+      background: #1e1e1e;
+      color: #cccccc;
       display: flex;
       flex-direction: column;
+      font-size: 13px;
+      line-height: 1.4;
     }
 
-    header {
-      background: #181825;
-      border-bottom: 1px solid #313244;
-      padding: 1rem 1.5rem;
+    /* ── Title bar ──────────────────────────────────────────────────────── */
+    .titlebar {
+      height: 30px;
+      background: #323233;
       display: flex;
       align-items: center;
-      gap: 1rem;
+      justify-content: center;
+      font-size: 12px;
+      color: #cccccc;
+      flex-shrink: 0;
+      user-select: none;
+      border-bottom: 1px solid #252526;
     }
 
-    header h1 {
-      font-size: 1.4rem;
-      font-weight: 700;
-      color: #cba6f7;
-    }
-
-    header .badge {
-      background: #313244;
-      color: #a6e3a1;
-      font-size: 0.75rem;
-      padding: 2px 8px;
-      border-radius: 9999px;
-      font-weight: 600;
-    }
-
-    header p {
-      margin-left: auto;
-      font-size: 0.85rem;
-      color: #6c7086;
-    }
-
-    main {
+    /* ── Workbench (fills remaining space) ──────────────────────────────── */
+    .workbench {
       flex: 1;
       display: flex;
       flex-direction: column;
-      padding: 1.25rem 1.5rem;
-      gap: 1rem;
-      max-width: 1200px;
-      width: 100%;
-      margin: 0 auto;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ── Tab / action bar ───────────────────────────────────────────────── */
+    .action-bar {
+      height: 35px;
+      background: #252526;
+      display: flex;
+      align-items: stretch;
+      border-bottom: 1px solid #1e1e1e;
+      flex-shrink: 0;
+    }
+
+    .tabs {
+      display: flex;
+      align-items: stretch;
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 16px;
+      background: #2d2d2d;
+      border-right: 1px solid #252526;
+      color: #969696;
+      font-size: 13px;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      background: #1e1e1e;
+      color: #cccccc;
+      border-top: 1px solid #007acc;
     }
 
     .toolbar {
       display: flex;
-      gap: 0.6rem;
-      flex-wrap: wrap;
       align-items: center;
-    }
-
-    .toolbar label {
-      font-size: 0.85rem;
-      color: #a6adc8;
+      gap: 3px;
+      padding: 0 8px;
       margin-left: auto;
     }
 
-    .toolbar input[type="text"] {
-      background: #313244;
-      border: 1px solid #45475a;
-      border-radius: 6px;
-      color: #cdd6f4;
-      padding: 0.35rem 0.6rem;
-      font-size: 0.85rem;
-      width: 200px;
-    }
-
-    .toolbar input[type="text"]:focus {
-      outline: none;
-      border-color: #cba6f7;
-    }
-
+    /* ── Buttons ────────────────────────────────────────────────────────── */
     button {
       display: inline-flex;
       align-items: center;
-      gap: 0.4rem;
-      padding: 0.45rem 1rem;
-      border: none;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      font-weight: 600;
+      gap: 5px;
+      padding: 0 10px;
+      height: 24px;
+      border: 1px solid transparent;
+      border-radius: 2px;
+      font-size: 12px;
+      font-family: inherit;
+      font-weight: normal;
       cursor: pointer;
-      transition: opacity 0.15s, transform 0.1s;
+      background: transparent;
+      color: #cccccc;
+      transition: background 0.1s, border-color 0.1s;
+      white-space: nowrap;
     }
 
-    button:active { transform: scale(0.97); }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button:hover:not(:disabled) {
+      background: #2a2d2e;
+      border-color: #454545;
+    }
 
-    #btn-run  { background: #a6e3a1; color: #1e1e2e; }
-    #btn-run:hover:not(:disabled) { opacity: 0.85; }
+    button:active:not(:disabled) {
+      background: #37373d;
+    }
 
-    #btn-reset { background: #89b4fa; color: #1e1e2e; }
-    #btn-reset:hover { opacity: 0.85; }
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
 
-    #btn-clear { background: #f38ba8; color: #1e1e2e; }
-    #btn-clear:hover { opacity: 0.85; }
+    #btn-run {
+      background: #0e639c;
+      color: #ffffff;
+    }
 
+    #btn-run:hover:not(:disabled) {
+      background: #1177bb;
+    }
+
+    .toolbar-sep {
+      width: 1px;
+      height: 16px;
+      background: #454545;
+      margin: 0 4px;
+      flex-shrink: 0;
+    }
+
+    .filename-group {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: #969696;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .filename-group label {
+      cursor: default;
+    }
+
+    .filename-group input[type="text"] {
+      background: #3c3c3c;
+      border: 1px solid #3c3c3c;
+      border-radius: 2px;
+      color: #cccccc;
+      padding: 1px 6px;
+      font-size: 12px;
+      font-family: inherit;
+      height: 22px;
+      width: 170px;
+    }
+
+    .filename-group input[type="text"]:focus {
+      outline: none;
+      border-color: #007acc;
+      background: #1e1e1e;
+    }
+
+    /* ── Editor wrapper — fills all remaining vertical space ────────────── */
     .editor-wrapper {
-      border: 1px solid #313244;
-      border-radius: 8px;
-      overflow: hidden;
       flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      position: relative;
     }
 
-    /* Make CodeMirror fill its container */
+    /* CodeMirror fills the wrapper absolutely */
     .CodeMirror {
-      height: 480px;
+      position: absolute;
+      inset: 0;
+      height: 100% !important;
+      font-family: 'Consolas', 'Cascadia Code', 'Menlo', 'Monaco', 'Courier New', monospace;
       font-size: 14px;
-      line-height: 1.6;
+      line-height: 1.5;
+      background: #1e1e1e;
+      color: #d4d4d4;
+    }
+
+    /* ── VSCode Dark+ gutter ────────────────────────────────────────────── */
+    .CodeMirror-gutters {
+      background: #1e1e1e;
+      border-right: none;
+    }
+
+    .CodeMirror-linenumber {
+      color: #858585;
+      padding: 0 14px 0 8px;
+      min-width: 44px;
+    }
+
+    .CodeMirror-cursor {
+      border-left: 2px solid #aeafad;
+    }
+
+    .CodeMirror-activeline-background {
+      background: #282828;
+    }
+
+    .CodeMirror-selected,
+    .CodeMirror-focused .CodeMirror-selected {
+      background: #264f78;
+    }
+
+    .CodeMirror-matchingbracket {
+      color: #d4d4d4 !important;
+      background: #0d3a58;
+      border-bottom: 1px solid #919191;
+    }
+
+    /* ── VSCode Dark+ token colours ─────────────────────────────────────── */
+    .cm-s-default .cm-keyword    { color: #569cd6; }
+    .cm-s-default .cm-atom       { color: #b5cea8; }
+    .cm-s-default .cm-number     { color: #b5cea8; }
+    .cm-s-default .cm-def        { color: #dcdcaa; }
+    .cm-s-default .cm-variable   { color: #9cdcfe; }
+    .cm-s-default .cm-variable-2 { color: #9cdcfe; }
+    .cm-s-default .cm-variable-3,
+    .cm-s-default .cm-type       { color: #4ec9b0; }
+    .cm-s-default .cm-property   { color: #9cdcfe; }
+    .cm-s-default .cm-operator   { color: #d4d4d4; }
+    .cm-s-default .cm-string     { color: #ce9178; }
+    .cm-s-default .cm-string-2   { color: #ce9178; }
+    .cm-s-default .cm-comment    { color: #6a9955; font-style: italic; }
+    .cm-s-default .cm-builtin    { color: #dcdcaa; }
+    .cm-s-default .cm-bracket    { color: #d4d4d4; }
+    .cm-s-default .cm-tag        { color: #569cd6; }
+    .cm-s-default .cm-attribute  { color: #9cdcfe; }
+    .cm-s-default .cm-error      { color: #f44747; }
+    .cm-s-default .cm-punctuation { color: #d4d4d4; }
+
+    /* ── Lint squiggles (VSCode style) ──────────────────────────────────── */
+    .CodeMirror-lint-mark-error {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='M0 2.5 Q1.5 0.5 3 2.5 Q4.5 4.5 6 2.5' fill='none' stroke='%23f44747' stroke-width='1.2'/%3E%3C/svg%3E");
+      background-repeat: repeat-x;
+      background-position: bottom left;
+    }
+
+    .CodeMirror-lint-mark-warning {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='M0 2.5 Q1.5 0.5 3 2.5 Q4.5 4.5 6 2.5' fill='none' stroke='%23cca700' stroke-width='1.2'/%3E%3C/svg%3E");
+      background-repeat: repeat-x;
+      background-position: bottom left;
+    }
+
+    .CodeMirror-lint-tooltip {
+      background: #252526;
+      color: #cccccc;
+      border: 1px solid #454545;
+      border-radius: 3px;
+      font-size: 12px;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      padding: 4px 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      max-width: 400px;
+      line-height: 1.5;
+    }
+
+    .CodeMirror-lint-marker-error,
+    .CodeMirror-lint-marker-warning {
+      cursor: pointer;
+    }
+
+    /* ── Output panel ───────────────────────────────────────────────────── */
+    .panel {
+      background: #1e1e1e;
+      border-top: 1px solid #252526;
+      flex-shrink: 0;
+    }
+
+    .panel-header {
+      background: #252526;
+      display: flex;
+      align-items: stretch;
+      height: 27px;
+      border-bottom: 1px solid #1e1e1e;
+    }
+
+    .panel-tab {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #969696;
+      user-select: none;
+      border-bottom: 1px solid transparent;
+    }
+
+    .panel-tab.active {
+      color: #cccccc;
+      border-bottom-color: #007acc;
     }
 
     #output {
-      background: #181825;
-      border: 1px solid #313244;
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
-      font-size: 0.875rem;
-      min-height: 48px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-family: 'Consolas', 'Cascadia Code', 'Menlo', 'Monaco', 'Courier New', monospace;
+      min-height: 36px;
+      max-height: 90px;
+      overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-word;
+      color: #cccccc;
     }
 
-    #output.success { border-color: #a6e3a1; color: #a6e3a1; }
-    #output.error   { border-color: #f38ba8; color: #f38ba8; }
-    #output.info    { border-color: #89b4fa; color: #89b4fa; }
+    #output.success { color: #4ec9b0; }
+    #output.error   { color: #f44747; }
+    #output.info    { color: #9cdcfe; }
 
-    footer {
-      text-align: center;
-      padding: 0.75rem;
-      font-size: 0.78rem;
-      color: #45475a;
-      border-top: 1px solid #181825;
+    /* ── Status bar ─────────────────────────────────────────────────────── */
+    .statusbar {
+      height: 22px;
+      background: #007acc;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      font-size: 12px;
+      user-select: none;
     }
 
-    footer a { color: #cba6f7; text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
+    .statusbar-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 8px;
+      height: 100%;
+      white-space: nowrap;
+      transition: background 0.1s;
+    }
+
+    .statusbar-item:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .statusbar-item a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .statusbar-item a:hover {
+      text-decoration: underline;
+    }
+
+    .statusbar-right {
+      margin-left: auto;
+    }
+
+    #sb-problems.has-errors {
+      background: #c72e0f;
+    }
   </style>
 </head>
 <body>
 
-<header>
-  <h1>⚡ PptxGen Playground</h1>
-  <span class="badge">pptxgenjs v4</span>
-  <p>Write JS, click <strong>Run</strong>, download your presentation.</p>
-</header>
+<!-- Title bar -->
+<div class="titlebar">PptxGen Playground</div>
 
-<main>
-  <div class="toolbar">
-    <button id="btn-run">▶ Run &amp; Download</button>
-    <button id="btn-reset">↺ Reset to Sample</button>
-    <button id="btn-clear">✕ Clear</button>
-    <label for="filename">File name:&nbsp;
-      <input type="text" id="filename" value="presentation.pptx" spellcheck="false" />
-    </label>
+<!-- Workbench -->
+<div class="workbench">
+
+  <!-- Tab / action bar -->
+  <div class="action-bar">
+    <div class="tabs">
+      <div class="tab active">
+        <!-- JS file icon -->
+        <svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect width="14" height="14" rx="2" fill="#cbcb41"/>
+          <text x="7" y="11" text-anchor="middle" font-family="monospace,sans-serif" font-size="7" font-weight="bold" fill="#1e1e1e">JS</text>
+        </svg>
+        script.js
+      </div>
+    </div>
+    <div class="toolbar">
+      <button id="btn-run">Run &amp; Download</button>
+      <button id="btn-reset">Reset</button>
+      <button id="btn-clear">Clear</button>
+      <div class="toolbar-sep"></div>
+      <div class="filename-group">
+        <label for="filename">Output:</label>
+        <input type="text" id="filename" value="presentation.pptx" spellcheck="false" />
+      </div>
+    </div>
   </div>
 
+  <!-- Editor -->
   <div class="editor-wrapper">
     <textarea id="editor"></textarea>
   </div>
 
-  <div id="output" class="info">Ready — click <strong>Run &amp; Download</strong> to generate your presentation.</div>
-</main>
+  <!-- Output panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-tab active">Output</span>
+    </div>
+    <div id="output" class="info">Ready — click Run &amp; Download (or Ctrl/Cmd+Enter) to generate your presentation.</div>
+  </div>
 
-<footer>
-  Powered by <a href="https://gitbrent.github.io/PptxGenJS/" target="_blank" rel="noopener">PptxGenJS</a>
-  &nbsp;|&nbsp;
-  <a href="https://gitbrent.github.io/PptxGenJS/docs/api-presentation.html" target="_blank" rel="noopener">API Docs</a>
-  &nbsp;|&nbsp;
-  <span title="Code runs only in your browser; nothing is sent to any server.">🔒 Runs locally in your browser</span>
-</footer>
+</div><!-- /.workbench -->
+
+<!-- Status bar -->
+<div class="statusbar">
+  <div class="statusbar-item" id="sb-problems">0 errors&nbsp;&nbsp;0 warnings</div>
+  <div class="statusbar-item statusbar-right" id="sb-cursor">Ln 1, Col 1</div>
+  <div class="statusbar-item">JavaScript</div>
+  <div class="statusbar-item">UTF-8</div>
+  <div class="statusbar-item">
+    <a href="https://gitbrent.github.io/PptxGenJS/" target="_blank" rel="noopener">PptxGenJS v4</a>
+    &nbsp;|&nbsp;
+    <a href="https://gitbrent.github.io/PptxGenJS/docs/api-presentation.html" target="_blank" rel="noopener">API Docs</a>
+  </div>
+  <div class="statusbar-item" title="Code runs only in your browser; nothing is sent to any server.">Runs locally</div>
+</div>
 
 <!-- pptxgenjs browser bundle -->
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
@@ -211,13 +454,22 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
 
+<!-- CodeMirror editor-quality addons -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+
+<!-- JSHint linter + CodeMirror lint infrastructure -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jshint/2.13.6/jshint.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/lint/lint.min.js"></script>
+
 <script>
 // ---------------------------------------------------------------------------
 // Sample code shown by default
 // ---------------------------------------------------------------------------
 const SAMPLE_CODE = `// PptxGen Playground — edit this code and click "Run & Download"
 //
-// The global 'PptxGenJS' constructor is already available.
+// The globals 'PptxGenJS' and 'FILENAME' are already available.
 // Call pres.writeFile() last — it triggers the download.
 
 let pres = new PptxGenJS();
@@ -225,7 +477,7 @@ let pres = new PptxGenJS();
 // ── Slide 1: Title slide ──────────────────────────────────────────────────
 let slide1 = pres.addSlide();
 
-slide1.background = { color: "1E1E2E" };
+slide1.background = { color: "1E1E1E" };
 
 slide1.addText("PptxGen Playground", {
   x: 0.5, y: 1.5, w: "90%", h: 1.2,
@@ -233,7 +485,7 @@ slide1.addText("PptxGen Playground", {
   align: "center",
 });
 
-slide1.addText("Edit the code on the left, then click Run & Download.", {
+slide1.addText("Edit the code, then click Run & Download.", {
   x: 0.5, y: 3.0, w: "90%", h: 0.7,
   fontSize: 18, color: "A6ADC8",
   align: "center",
@@ -294,16 +546,73 @@ await pres.writeFile({ fileName: FILENAME });
 `.trim();
 
 // ---------------------------------------------------------------------------
+// Custom lint function
+// Wraps user code in an async IIFE before passing to JSHint so that
+// top-level `await` (valid in our execution context) is not flagged.
+// ---------------------------------------------------------------------------
+function asyncJsLint(text) {
+  const found = [];
+  if (typeof JSHINT !== "function") return found;
+
+  // Prepend one wrapper line so user code starts at JSHint line 2.
+  const wrapped = "(async () => {\n" + text + "\n})();";
+
+  JSHINT(wrapped, {
+    esversion: 11,
+    browser: true,
+    undef: false,
+    unused: false,
+    asi: true,
+  });
+
+  const userLineCount = text.split("\n").length;
+
+  for (let i = 0; i < (JSHINT.errors || []).length; i++) {
+    const err = JSHINT.errors[i];
+    if (!err) continue;
+
+    // JSHint lines are 1-indexed; subtract 1 for the wrapper line,
+    // then subtract 1 again to convert to 0-based CodeMirror lines.
+    const line = err.line - 2;
+    if (line < 0 || line >= userLineCount) continue;
+
+    // Find the end of the token at the error character for a wider underline.
+    const lineText = text.split("\n")[line] || "";
+    const startCh  = Math.max(0, err.character - 1);
+    let   endCh    = startCh;
+    while (endCh < lineText.length && /\S/.test(lineText[endCh])) endCh++;
+    if (endCh === startCh) endCh = startCh + 1;
+
+    found.push({
+      from:     CodeMirror.Pos(line, startCh),
+      to:       CodeMirror.Pos(line, endCh),
+      message:  err.reason,
+      severity: (err.code && err.code[0] === "W") ? "warning" : "error",
+    });
+  }
+
+  return found;
+}
+
+// ---------------------------------------------------------------------------
 // CodeMirror setup
 // ---------------------------------------------------------------------------
 const cm = CodeMirror.fromTextArea(document.getElementById("editor"), {
-  mode: "javascript",
-  theme: "dracula",
-  lineNumbers: true,
-  tabSize: 2,
-  indentWithTabs: false,
-  lineWrapping: false,
-  autofocus: true,
+  mode:             "javascript",
+  theme:            "default",
+  lineNumbers:      true,
+  tabSize:          2,
+  indentWithTabs:   false,
+  lineWrapping:     false,
+  autofocus:        true,
+  styleActiveLine:  true,
+  matchBrackets:    true,
+  autoCloseBrackets: true,
+  gutters:          ["CodeMirror-linenumbers", "CodeMirror-lint-markers"],
+  lint: {
+    getAnnotations: asyncJsLint,
+    async:          false,
+  },
   extraKeys: {
     "Ctrl-Enter": runCode,
     "Cmd-Enter":  runCode,
@@ -311,6 +620,36 @@ const cm = CodeMirror.fromTextArea(document.getElementById("editor"), {
 });
 
 cm.setValue(SAMPLE_CODE);
+
+// Ensure CodeMirror recalculates its size once the layout is fully rendered.
+window.addEventListener("load", () => cm.refresh());
+window.addEventListener("resize", () => cm.refresh());
+
+// ---------------------------------------------------------------------------
+// Status bar — cursor position
+// ---------------------------------------------------------------------------
+const sbCursor   = document.getElementById("sb-cursor");
+const sbProblems = document.getElementById("sb-problems");
+
+cm.on("cursorActivity", () => {
+  const c = cm.getCursor();
+  sbCursor.textContent = "Ln " + (c.line + 1) + ", Col " + (c.ch + 1);
+});
+
+// ---------------------------------------------------------------------------
+// Status bar — live lint problem count
+// ---------------------------------------------------------------------------
+cm.on("updateLinting", (_, annotations) => {
+  let errors = 0, warnings = 0;
+  for (const a of annotations) {
+    if (a.severity === "error")   errors++;
+    else if (a.severity === "warning") warnings++;
+  }
+  sbProblems.textContent =
+    errors   + " error"   + (errors   !== 1 ? "s" : "") + "\u2002\u2002" +
+    warnings + " warning" + (warnings !== 1 ? "s" : "");
+  sbProblems.classList.toggle("has-errors", errors > 0);
+});
 
 // ---------------------------------------------------------------------------
 // UI helpers
@@ -336,7 +675,7 @@ async function runCode() {
 
   const fileName = (filename.value.trim() || "presentation").replace(/\.pptx$/i, "") + ".pptx";
 
-  setOutput("⏳ Generating presentation…", "info");
+  setOutput("Generating presentation...", "info");
   btnRun.disabled = true;
 
   try {
@@ -344,9 +683,9 @@ async function runCode() {
     // Expose FILENAME so sample code can reference it.
     const fn = new Function("PptxGenJS", "FILENAME", `"use strict"; return (async () => { ${code} })();`);
     await fn(PptxGenJS, fileName);
-    setOutput(`✅ Done! "${fileName}" should be downloading now.`, "success");
+    setOutput("Done — \"" + fileName + "\" is downloading.", "success");
   } catch (err) {
-    setOutput(`❌ Error: ${err.message || err}`, "error");
+    setOutput("Error: " + (err.message || err), "error");
     console.error(err);
   } finally {
     btnRun.disabled = false;
@@ -368,9 +707,6 @@ document.getElementById("btn-clear").addEventListener("click", () => {
   cm.setValue("");
   setOutput("Editor cleared.", "info");
 });
-
-// Keyboard shortcut hint
-setOutput("Ready — click ▶ Run & Download (or Ctrl/Cmd+Enter) to generate your presentation.", "info");
 </script>
 </body>
 </html>

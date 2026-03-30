@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!--
+    Security note: This playground executes the code you type directly in your
+    browser using new Function() (equivalent to eval).  Only run code you trust.
+    If you deploy this page publicly, ensure you understand that every visitor
+    can execute arbitrary JavaScript in their own browser context.
+    The Content-Security-Policy below restricts script/style sources to the
+    CDNs used by this page and requires 'unsafe-eval' for the code-execution
+    feature to work.
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none';
+                 script-src  'self' cdn.jsdelivr.net cdnjs.cloudflare.com 'unsafe-eval' 'unsafe-inline';
+                 style-src   'self' cdnjs.cloudflare.com 'unsafe-inline';
+                 font-src    cdnjs.cloudflare.com;
+                 connect-src 'none';" />
+  <title>PptxGen Playground</title>
+
+  <!-- CodeMirror – JavaScript syntax highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #181825;
+      border-bottom: 1px solid #313244;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #cba6f7;
+    }
+
+    header .badge {
+      background: #313244;
+      color: #a6e3a1;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+
+    header p {
+      margin-left: auto;
+      font-size: 0.85rem;
+      color: #6c7086;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 1.25rem 1.5rem;
+      gap: 1rem;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .toolbar label {
+      font-size: 0.85rem;
+      color: #a6adc8;
+      margin-left: auto;
+    }
+
+    .toolbar input[type="text"] {
+      background: #313244;
+      border: 1px solid #45475a;
+      border-radius: 6px;
+      color: #cdd6f4;
+      padding: 0.35rem 0.6rem;
+      font-size: 0.85rem;
+      width: 200px;
+    }
+
+    .toolbar input[type="text"]:focus {
+      outline: none;
+      border-color: #cba6f7;
+    }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #btn-run  { background: #a6e3a1; color: #1e1e2e; }
+    #btn-run:hover:not(:disabled) { opacity: 0.85; }
+
+    #btn-reset { background: #89b4fa; color: #1e1e2e; }
+    #btn-reset:hover { opacity: 0.85; }
+
+    #btn-clear { background: #f38ba8; color: #1e1e2e; }
+    #btn-clear:hover { opacity: 0.85; }
+
+    .editor-wrapper {
+      border: 1px solid #313244;
+      border-radius: 8px;
+      overflow: hidden;
+      flex: 1;
+    }
+
+    /* Make CodeMirror fill its container */
+    .CodeMirror {
+      height: 480px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    #output {
+      background: #181825;
+      border: 1px solid #313244;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      min-height: 48px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    #output.success { border-color: #a6e3a1; color: #a6e3a1; }
+    #output.error   { border-color: #f38ba8; color: #f38ba8; }
+    #output.info    { border-color: #89b4fa; color: #89b4fa; }
+
+    footer {
+      text-align: center;
+      padding: 0.75rem;
+      font-size: 0.78rem;
+      color: #45475a;
+      border-top: 1px solid #181825;
+    }
+
+    footer a { color: #cba6f7; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ PptxGen Playground</h1>
+  <span class="badge">pptxgenjs v4</span>
+  <p>Write JS, click <strong>Run</strong>, download your presentation.</p>
+</header>
+
+<main>
+  <div class="toolbar">
+    <button id="btn-run">▶ Run &amp; Download</button>
+    <button id="btn-reset">↺ Reset to Sample</button>
+    <button id="btn-clear">✕ Clear</button>
+    <label for="filename">File name:&nbsp;
+      <input type="text" id="filename" value="presentation.pptx" spellcheck="false" />
+    </label>
+  </div>
+
+  <div class="editor-wrapper">
+    <textarea id="editor"></textarea>
+  </div>
+
+  <div id="output" class="info">Ready — click <strong>Run &amp; Download</strong> to generate your presentation.</div>
+</main>
+
+<footer>
+  Powered by <a href="https://gitbrent.github.io/PptxGenJS/" target="_blank" rel="noopener">PptxGenJS</a>
+  &nbsp;|&nbsp;
+  <a href="https://gitbrent.github.io/PptxGenJS/docs/api-presentation.html" target="_blank" rel="noopener">API Docs</a>
+  &nbsp;|&nbsp;
+  <span title="Code runs only in your browser; nothing is sent to any server.">🔒 Runs locally in your browser</span>
+</footer>
+
+<!-- pptxgenjs browser bundle -->
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
+
+<!-- CodeMirror core + JS mode -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Sample code shown by default
+// ---------------------------------------------------------------------------
+const SAMPLE_CODE = `// PptxGen Playground — edit this code and click "Run & Download"
+//
+// The global 'PptxGenJS' constructor is already available.
+// Call pres.writeFile() last — it triggers the download.
+
+let pres = new PptxGenJS();
+
+// ── Slide 1: Title slide ──────────────────────────────────────────────────
+let slide1 = pres.addSlide();
+
+slide1.background = { color: "1E1E2E" };
+
+slide1.addText("PptxGen Playground", {
+  x: 0.5, y: 1.5, w: "90%", h: 1.2,
+  fontSize: 44, bold: true, color: "CBA6F7",
+  align: "center",
+});
+
+slide1.addText("Edit the code on the left, then click Run & Download.", {
+  x: 0.5, y: 3.0, w: "90%", h: 0.7,
+  fontSize: 18, color: "A6ADC8",
+  align: "center",
+});
+
+// ── Slide 2: Bullet list ──────────────────────────────────────────────────
+let slide2 = pres.addSlide();
+
+slide2.addText("What can PptxGenJS do?", {
+  x: 0.5, y: 0.4, w: "90%", h: 0.8,
+  fontSize: 28, bold: true, color: "89B4FA",
+});
+
+const bullets = [
+  "Add text with rich formatting",
+  "Insert images, charts and tables",
+  "Draw shapes and lines",
+  "Set backgrounds and master layouts",
+  "Works in Node.js and the browser",
+];
+
+slide2.addText(
+  bullets.map((t) => ({ text: "• " + t, options: { bullet: false } })),
+  {
+    x: 0.5, y: 1.4, w: "90%", h: 4,
+    fontSize: 18, color: "CDD6F4",
+    valign: "top", paraSpaceBefore: 8,
+  }
+);
+
+// ── Slide 3: Shape + text box ─────────────────────────────────────────────
+let slide3 = pres.addSlide();
+
+slide3.addShape(pres.ShapeType.rect, {
+  x: 0.5, y: 0.5, w: 9, h: 1.2,
+  fill: { color: "A6E3A1" },
+  line: { color: "A6E3A1" },
+});
+
+slide3.addText("Shapes & Text Boxes", {
+  x: 0.5, y: 0.5, w: 9, h: 1.2,
+  fontSize: 26, bold: true, color: "1E1E2E",
+  align: "center", valign: "middle",
+});
+
+slide3.addText(
+  "You can combine shapes and text boxes freely.\\n" +
+  "See the PptxGenJS docs for the full API.",
+  {
+    x: 0.5, y: 2.2, w: 9, h: 2,
+    fontSize: 17, color: "CDD6F4",
+    align: "center",
+  }
+);
+
+// ── Download ──────────────────────────────────────────────────────────────
+await pres.writeFile({ fileName: FILENAME });
+`.trim();
+
+// ---------------------------------------------------------------------------
+// CodeMirror setup
+// ---------------------------------------------------------------------------
+const cm = CodeMirror.fromTextArea(document.getElementById("editor"), {
+  mode: "javascript",
+  theme: "dracula",
+  lineNumbers: true,
+  tabSize: 2,
+  indentWithTabs: false,
+  lineWrapping: false,
+  autofocus: true,
+  extraKeys: {
+    "Ctrl-Enter": runCode,
+    "Cmd-Enter":  runCode,
+  },
+});
+
+cm.setValue(SAMPLE_CODE);
+
+// ---------------------------------------------------------------------------
+// UI helpers
+// ---------------------------------------------------------------------------
+const output   = document.getElementById("output");
+const btnRun   = document.getElementById("btn-run");
+const filename = document.getElementById("filename");
+
+function setOutput(msg, type = "info") {
+  output.textContent = msg;
+  output.className = type;
+}
+
+// ---------------------------------------------------------------------------
+// Run user code
+// ---------------------------------------------------------------------------
+async function runCode() {
+  const code = cm.getValue().trim();
+  if (!code) {
+    setOutput("Nothing to run — the editor is empty.", "error");
+    return;
+  }
+
+  const fileName = (filename.value.trim() || "presentation").replace(/\.pptx$/i, "") + ".pptx";
+
+  setOutput("⏳ Generating presentation…", "info");
+  btnRun.disabled = true;
+
+  try {
+    // Wrap user code in an async function so they can use `await` freely.
+    // Expose FILENAME so sample code can reference it.
+    const fn = new Function("PptxGenJS", "FILENAME", `"use strict"; return (async () => { ${code} })();`);
+    await fn(PptxGenJS, fileName);
+    setOutput(`✅ Done! "${fileName}" should be downloading now.`, "success");
+  } catch (err) {
+    setOutput(`❌ Error: ${err.message || err}`, "error");
+    console.error(err);
+  } finally {
+    btnRun.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Button handlers
+// ---------------------------------------------------------------------------
+document.getElementById("btn-run").addEventListener("click", runCode);
+
+document.getElementById("btn-reset").addEventListener("click", () => {
+  cm.setValue(SAMPLE_CODE);
+  cm.clearHistory();
+  setOutput("Editor reset to sample code.", "info");
+});
+
+document.getElementById("btn-clear").addEventListener("click", () => {
+  cm.setValue("");
+  setOutput("Editor cleared.", "info");
+});
+
+// Keyboard shortcut hint
+setOutput("Ready — click ▶ Run & Download (or Ctrl/Cmd+Enter) to generate your presentation.", "info");
+</script>
+</body>
+</html>

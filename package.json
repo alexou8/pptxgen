@@ -1,0 +1,11 @@
+{
+  "name": "pptxgen-playground",
+  "version": "1.0.0",
+  "description": "Browser-based playground to write pptxgenjs code and download PPTX presentations",
+  "scripts": {
+    "start": "npx serve . -p 3000 --no-clipboard",
+    "dev": "npx serve . -p 3000"
+  },
+  "keywords": ["pptxgenjs", "powerpoint", "playground", "browser"],
+  "license": "MIT"
+}

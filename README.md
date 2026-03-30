@@ -1,5 +1,7 @@
 # PptxGen Playground
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-blue?logo=github)](https://alexou8.github.io/pptxgen/)
+
 A browser-based playground that lets you write (or paste) **PptxGenJS** JavaScript code and instantly download the generated PowerPoint (`.pptx`) presentation — no build step, no server-side code.
 
 ## ✨ Features
@@ -24,7 +26,12 @@ Just double-click `index.html` (or drag it into a browser tab).
 npm start        # serves at http://localhost:3000
 ```
 
-### Option 3 — Deploy as a static site
+### Option 3 — Live site (GitHub Pages)
+
+The playground is automatically deployed to GitHub Pages on every push to `main`:  
+👉 **<https://alexou8.github.io/pptxgen/>**
+
+### Option 4 — Deploy your own static site
 
 Upload `index.html` to any static hosting provider (GitHub Pages, Netlify, Vercel, etc.).  
 No build step required — all dependencies are loaded from CDN.

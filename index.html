@@ -384,6 +384,9 @@
     #sb-problems.has-errors {
       background: #c72e0f;
     }
+
+    #sb-problems { gap: 8px; }
+    #sb-warnings { opacity: 0.85; }
   </style>
 </head>
 <body>
@@ -435,7 +438,9 @@
 
 <!-- Status bar -->
 <div class="statusbar">
-  <div class="statusbar-item" id="sb-problems">0 errors&nbsp;&nbsp;0 warnings</div>
+  <div class="statusbar-item" id="sb-problems">
+    <span id="sb-errors">0 errors</span><span id="sb-warnings">0 warnings</span>
+  </div>
   <div class="statusbar-item statusbar-right" id="sb-cursor">Ln 1, Col 1</div>
   <div class="statusbar-item">JavaScript</div>
   <div class="statusbar-item">UTF-8</div>
@@ -469,7 +474,8 @@
 // ---------------------------------------------------------------------------
 const SAMPLE_CODE = `// PptxGen Playground — edit this code and click "Run & Download"
 //
-// The globals 'PptxGenJS' and 'FILENAME' are already available.
+// 'PptxGenJS' is a global constructor; 'FILENAME' is the output filename
+// injected from the "Output:" field above — both are available here.
 // Call pres.writeFile() last — it triggers the download.
 
 let pres = new PptxGenJS();
@@ -639,15 +645,17 @@ cm.on("cursorActivity", () => {
 // ---------------------------------------------------------------------------
 // Status bar — live lint problem count
 // ---------------------------------------------------------------------------
+const sbErrors   = document.getElementById("sb-errors");
+const sbWarnings = document.getElementById("sb-warnings");
+
 cm.on("updateLinting", (_, annotations) => {
   let errors = 0, warnings = 0;
   for (const a of annotations) {
-    if (a.severity === "error")   errors++;
+    if (a.severity === "error")        errors++;
     else if (a.severity === "warning") warnings++;
   }
-  sbProblems.textContent =
-    errors   + " error"   + (errors   !== 1 ? "s" : "") + "\u2002\u2002" +
-    warnings + " warning" + (warnings !== 1 ? "s" : "");
+  sbErrors.textContent   = errors   + " error"   + (errors   !== 1 ? "s" : "");
+  sbWarnings.textContent = warnings + " warning" + (warnings !== 1 ? "s" : "");
   sbProblems.classList.toggle("has-errors", errors > 0);
 });
 
@@ -680,7 +688,9 @@ async function runCode() {
 
   try {
     // Wrap user code in an async function so they can use `await` freely.
-    // Expose FILENAME so sample code can reference it.
+    // PptxGenJS and FILENAME are injected as named parameters, not globals.
+    // Note: `code` is injected as text into an async IIFE; syntax errors
+    // produce a caught runtime exception rather than a lint warning here.
     const fn = new Function("PptxGenJS", "FILENAME", `"use strict"; return (async () => { ${code} })();`);
     await fn(PptxGenJS, fileName);
     setOutput("Done — \"" + fileName + "\" is downloading.", "success");

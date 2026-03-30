@@ -683,27 +683,55 @@ slide2.addText(
   }
 );
 
-// ── Slide 3: Shape + text box ─────────────────────────────────────────────
+// ── Slide 3: Shapes ───────────────────────────────────────────────────────
 let slide3 = pres.addSlide();
+slide3.background = { color: "1E1E2E" };
 
 slide3.addShape(pres.ShapeType.rect, {
   x: 0.5, y: 0.5, w: 9, h: 1.2,
   fill: { color: "A6E3A1" },
   line: { color: "A6E3A1" },
 });
-
 slide3.addText("Shapes & Text Boxes", {
   x: 0.5, y: 0.5, w: 9, h: 1.2,
   fontSize: 26, bold: true, color: "1E1E2E",
   align: "center", valign: "middle",
 });
 
+// ellipse
+slide3.addShape(pres.ShapeType.ellipse, {
+  x: 0.5, y: 2.1, w: 1.8, h: 1.8,
+  fill: { color: "89B4FA" },
+  line: { color: "CBA6F7", width: 2 },
+});
+// diamond
+slide3.addShape(pres.ShapeType.diamond, {
+  x: 2.6, y: 2.1, w: 1.8, h: 1.8,
+  fill: { color: "F38BA8" },
+});
+// right arrow
+slide3.addShape(pres.ShapeType.rightArrow, {
+  x: 4.7, y: 2.1, w: 2.0, h: 1.8,
+  fill: { color: "FAB387" },
+});
+// rounded rectangle
+slide3.addShape(pres.ShapeType.roundRect, {
+  x: 7.0, y: 2.1, w: 2.5, h: 1.8,
+  fill: { color: "A6E3A1" },
+  rectRadius: 0.3,
+});
+
+// line
+slide3.addShape(pres.ShapeType.line, {
+  x: 0.5, y: 4.2, w: 9, h: 0,
+  line: { color: "6C7086", width: 2 },
+});
+
 slide3.addText(
-  "You can combine shapes and text boxes freely.\\n" +
-  "See the PptxGenJS docs for the full API.",
+  "Rect  •  Ellipse  •  Diamond  •  Arrow  •  RoundRect",
   {
-    x: 0.5, y: 2.2, w: 9, h: 2,
-    fontSize: 17, color: "CDD6F4",
+    x: 0.5, y: 4.5, w: 9, h: 0.8,
+    fontSize: 14, color: "A6ADC8",
     align: "center",
   }
 );
@@ -788,15 +816,264 @@ function normColor(c) {
   return c ? String(c).replace(/^#/, "") : "";
 }
 
-// Render one slide object as an absolutely-positioned element.
-function renderSlideObj(obj, slideW, slideH, scale) {
+// Apply shape-type-specific CSS (clip-path, border-radius, etc.) to an element.
+function applyShapeTypeStyle(el, shape, opts, w, h, scale) {
+  switch (shape) {
+    case "ellipse":
+      el.style.borderRadius = "50%";
+      break;
+    case "roundRect": {
+      const r = typeof opts.rectRadius === "number" ? opts.rectRadius : 0.1;
+      el.style.borderRadius = Math.round(r * scale) + "px";
+      break;
+    }
+    case "triangle":
+      el.style.clipPath = "polygon(50% 0%, 0% 100%, 100% 100%)";
+      break;
+    case "rtTriangle":
+      el.style.clipPath = "polygon(0% 0%, 0% 100%, 100% 100%)";
+      break;
+    case "diamond":
+      el.style.clipPath = "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)";
+      break;
+    case "parallelogram":
+      el.style.clipPath = "polygon(20% 0%, 100% 0%, 80% 100%, 0% 100%)";
+      break;
+    case "trapezoid":
+      el.style.clipPath = "polygon(12% 100%, 0% 0%, 100% 0%, 88% 100%)";
+      break;
+    case "pentagon":
+      el.style.clipPath = "polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)";
+      break;
+    case "hexagon":
+      el.style.clipPath = "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)";
+      break;
+    case "heptagon":
+      el.style.clipPath = "polygon(50% 0%,90% 20%,100% 60%,75% 100%,25% 100%,0% 60%,10% 20%)";
+      break;
+    case "octagon":
+      el.style.clipPath = "polygon(30% 0%,70% 0%,100% 30%,100% 70%,70% 100%,30% 100%,0% 70%,0% 30%)";
+      break;
+    case "star4":
+      el.style.clipPath = "polygon(50% 0%,56% 44%,100% 50%,56% 56%,50% 100%,44% 56%,0% 50%,44% 44%)";
+      break;
+    case "star5":
+      el.style.clipPath = "polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)";
+      break;
+    case "star6":
+      el.style.clipPath = "polygon(50% 0%,63% 25%,93% 25%,75% 50%,93% 75%,63% 75%,50% 100%,37% 75%,7% 75%,25% 50%,7% 25%,37% 25%)";
+      break;
+    case "rightArrow":
+      el.style.clipPath = "polygon(0% 25%,60% 25%,60% 0%,100% 50%,60% 100%,60% 75%,0% 75%)";
+      break;
+    case "leftArrow":
+      el.style.clipPath = "polygon(100% 25%,40% 25%,40% 0%,0% 50%,40% 100%,40% 75%,100% 75%)";
+      break;
+    case "upArrow":
+      el.style.clipPath = "polygon(50% 0%,100% 40%,75% 40%,75% 100%,25% 100%,25% 40%,0% 40%)";
+      break;
+    case "downArrow":
+      el.style.clipPath = "polygon(50% 100%,0% 60%,25% 60%,25% 0%,75% 0%,75% 60%,100% 60%)";
+      break;
+    case "chevron":
+      el.style.clipPath = "polygon(0% 0%,75% 0%,100% 50%,75% 100%,0% 100%,25% 50%)";
+      break;
+    case "homePlate":
+      el.style.clipPath = "polygon(0% 0%,80% 0%,100% 50%,80% 100%,0% 100%)";
+      break;
+  }
+}
+
+// Render rich text runs as child <span> elements inside textEl.
+// Each run in obj.text may carry its own bold/italic/color/fontSize overrides.
+function renderTextContent(obj, opts, scale, textEl) {
+  const runs = obj.text;
+  if (!Array.isArray(runs) || runs.length === 0) {
+    textEl.textContent = extractText(runs);
+    return;
+  }
+
+  // Check whether any run carries per-run formatting options.
+  const hasRich = runs.some(
+    r => r && typeof r === "object" && r.options &&
+      (r.options.color != null || r.options.bold != null ||
+       r.options.italic != null || r.options.underline != null ||
+       r.options.fontSize != null)
+  );
+
+  if (!hasRich) {
+    textEl.textContent = extractText(runs);
+    return;
+  }
+
+  // Render each run as a <span> inheriting container defaults.
+  for (const run of runs) {
+    if (!run) continue;
+    const runText = typeof run === "string" ? run : (run.text || "");
+    if (!runText) continue;
+    const span = document.createElement("span");
+    span.textContent = runText;
+    if (typeof run === "object" && run.options) {
+      const ro = run.options;
+      const rc = normColor(ro.color);
+      if (rc) span.style.color = "#" + rc;
+      if (ro.bold != null)    span.style.fontWeight     = ro.bold    ? "bold"      : "normal";
+      if (ro.italic != null)  span.style.fontStyle      = ro.italic  ? "italic"    : "normal";
+      if (ro.underline && ro.underline !== false)
+                              span.style.textDecoration = "underline";
+      if (typeof ro.fontSize === "number")
+        span.style.fontSize = Math.max(6, (ro.fontSize / PTS_PER_INCH) * scale) + "px";
+    }
+    textEl.appendChild(span);
+  }
+}
+
+// Render a table object as an absolutely-positioned HTML <table>.
+function renderTableObj(obj, slideW, slideH, scale) {
   if (!obj || !obj.options) return null;
   const opts = obj.options;
+  // Table positions arrive in EMU; convert to inches first.
+  const x = (opts.x / EMU_PER_INCH) * scale;
+  const y = (opts.y / EMU_PER_INCH) * scale;
+  const w = (opts.w / EMU_PER_INCH) * scale;
+  if (w <= 0) return null;
 
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText =
+    "position:absolute;overflow:hidden;" +
+    "left:" + x + "px;top:" + y + "px;width:" + w + "px;";
+
+  const table = document.createElement("table");
+  table.style.cssText = "width:100%;border-collapse:collapse;table-layout:fixed;";
+
+  // Column widths (inches → pixels)
+  if (Array.isArray(opts.colW) && opts.colW.length) {
+    const cg = document.createElement("colgroup");
+    for (const cw of opts.colW) {
+      const col = document.createElement("col");
+      col.style.width = (cw * scale) + "px";
+      cg.appendChild(col);
+    }
+    table.appendChild(cg);
+  }
+
+  const tbody = document.createElement("tbody");
+  for (const row of (obj.arrTabRows || [])) {
+    const tr = document.createElement("tr");
+    for (const cell of row) {
+      const td = document.createElement("td");
+      const co = cell.options || {};
+      const fsPt = co.fontSize || opts.fontSize || 12;
+      td.style.fontSize  = Math.max(6, (fsPt / PTS_PER_INCH) * scale) + "px";
+      td.style.padding   = "2px 4px";
+      td.style.overflow  = "hidden";
+      td.style.verticalAlign = co.valign === "middle" ? "middle" : co.valign === "bottom" ? "bottom" : "top";
+      if (co.bold || opts.bold) td.style.fontWeight = "bold";
+      if (co.italic)            td.style.fontStyle  = "italic";
+      const tc = normColor(co.color || opts.color);
+      if (tc) td.style.color = "#" + tc;
+      const fill = co.fill;
+      if (fill) {
+        const fc = normColor(typeof fill === "string" ? fill : fill.color);
+        if (fc) td.style.background = "#" + fc;
+      }
+      // Borders: [top, right, bottom, left]
+      const borders = Array.isArray(co.border) ? co.border : null;
+      if (borders) {
+        const sides = ["top", "right", "bottom", "left"];
+        borders.forEach((b, i) => {
+          if (b && b.type !== "none" && b.color) {
+            const bw = Math.max(0.5, ((b.pt || 1) / PTS_PER_INCH) * scale);
+            const side = sides[i];
+            td.style["border" + side.charAt(0).toUpperCase() + side.slice(1)] =
+              bw + "px solid #" + normColor(b.color);
+          }
+        });
+      }
+      td.textContent = typeof cell.text === "string" ? cell.text : extractText(cell.text);
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrapper.appendChild(table);
+  return wrapper;
+}
+
+// Render an image object as an absolutely-positioned element.
+function renderImageObj(obj, slideW, slideH, scale, slide) {
+  if (!obj || !obj.options) return null;
+  const opts = obj.options;
   const x = toPx(opts.x, slideW, scale);
   const y = toPx(opts.y, slideH, scale);
   const w = toPx(opts.w, slideW, scale);
   const h = toPx(opts.h, slideH, scale);
+  if (w <= 0 || h <= 0) return null;
+
+  // Resolve image source: prefer base64 data from _relsMedia, fall back to URL path.
+  let imgSrc = null;
+  if (slide && Array.isArray(slide._relsMedia)) {
+    const media = slide._relsMedia.find(m => m.rId === obj.imageRid);
+    if (media) imgSrc = media.data || media.path || null;
+  }
+  if (!imgSrc && obj.image &&
+      (obj.image.startsWith("http") || obj.image.startsWith("data:") || obj.image.startsWith("/"))) {
+    imgSrc = obj.image;
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText =
+    "position:absolute;overflow:hidden;" +
+    "left:" + x + "px;top:" + y + "px;width:" + w + "px;height:" + h + "px;";
+  if (opts.rounding) wrapper.style.borderRadius = "50%";
+
+  if (imgSrc) {
+    const img = document.createElement("img");
+    img.src = imgSrc;
+    img.alt = opts.altText || "";
+    img.style.cssText = "width:100%;height:100%;object-fit:fill;display:block;";
+    if (opts.rounding) img.style.borderRadius = "50%";
+    wrapper.appendChild(img);
+  } else {
+    // Placeholder when image data is unavailable (e.g. server-side path).
+    wrapper.style.background     = "#444";
+    wrapper.style.display        = "flex";
+    wrapper.style.alignItems     = "center";
+    wrapper.style.justifyContent = "center";
+    const icon = document.createElement("span");
+    icon.textContent = "\uD83D\uDDBC";
+    icon.style.fontSize = Math.min(w, h) * 0.4 + "px";
+    icon.style.opacity  = "0.6";
+    wrapper.appendChild(icon);
+  }
+  return wrapper;
+}
+
+// Render one slide object as an absolutely-positioned element.
+function renderSlideObj(obj, slideW, slideH, scale, slide) {
+  if (!obj || !obj.options) return null;
+
+  // Dispatch by object type.
+  if (obj._type === "image") return renderImageObj(obj, slideW, slideH, scale, slide);
+  if (obj._type === "table") return renderTableObj(obj, slideW, slideH, scale);
+
+  // "text" objects cover both pure shapes (text === null) and text boxes.
+  const opts = obj.options;
+  const shape = obj.shape || "rect";
+
+  const x = toPx(opts.x, slideW, scale);
+  const y = toPx(opts.y, slideH, scale);
+  const w = toPx(opts.w, slideW, scale);
+  let   h = toPx(opts.h, slideH, scale);
+
+  // "line" shapes have h = 0 by convention; give them a rendered thickness.
+  const isLine = shape === "line";
+  if (isLine && h === 0) {
+    const line = opts.line;
+    const lw = line && line.width ? line.width : 1;
+    h = Math.max(1, (lw / PTS_PER_INCH) * scale);
+  }
+
   if (w <= 0 || h <= 0) return null;
 
   const el = document.createElement("div");
@@ -808,31 +1085,42 @@ function renderSlideObj(obj, slideW, slideH, scale) {
     "height:" + h + "px;" +
     "overflow:hidden;";
 
-  // Fill / background colour
-  const fill = opts.fill;
-  if (fill) {
-    const fc = normColor(typeof fill === "string" ? fill : fill.color);
-    if (fc) el.style.background = "#" + fc;
+  // Fill / background colour (not for bare lines)
+  if (!isLine) {
+    const fill = opts.fill;
+    if (fill) {
+      const fc = normColor(typeof fill === "string" ? fill : fill.color);
+      if (fc) el.style.background = "#" + fc;
+    }
   }
 
   // Outline / border
   const line = opts.line;
-  if (line) {
+  if (line && line.type !== "none") {
     const lc = normColor(typeof line === "string" ? line : line.color);
     // line.width is in points; map to pixels (1 pt ≈ scale/72 px)
     const lw = Math.max(0.5, ((line.width || 1) / PTS_PER_INCH) * scale);
     if (lc) {
-      el.style.border    = lw + "px solid #" + lc;
-      el.style.boxSizing = "border-box";
+      if (isLine) {
+        // Render line shape as a solid bar (no border, just background).
+        el.style.background = "#" + lc;
+      } else {
+        el.style.border    = lw + "px solid #" + lc;
+        el.style.boxSizing = "border-box";
+      }
     }
   }
+
+  // Shape-type-specific CSS (ellipse, roundRect, polygon clip-paths, …)
+  applyShapeTypeStyle(el, shape, opts, w, h, scale);
 
   // Text content
   const rawText = extractText(obj.text);
   if (rawText.trim()) {
     el.style.display        = "flex";
     el.style.flexDirection  = "column";
-    const va = opts.valign || "top";
+    const va = opts.valign || (opts._bodyProp && opts._bodyProp.anchor === "b" ? "bottom"
+                              : opts._bodyProp && opts._bodyProp.anchor === "ctr" ? "middle" : "top");
     el.style.justifyContent =
       va === "middle" ? "center" : va === "bottom" ? "flex-end" : "flex-start";
 
@@ -855,7 +1143,7 @@ function renderSlideObj(obj, slideW, slideH, scale) {
     if (opts.underline && opts.underline !== false)
                       textEl.style.textDecoration  = "underline";
 
-    textEl.textContent = rawText;
+    renderTextContent(obj, opts, scale, textEl);
     el.appendChild(textEl);
   }
 
@@ -876,9 +1164,9 @@ function renderSlideEl(slide, slideW, slideH, scale, slideWPx) {
     if (bc) el.style.background = "#" + bc;
   }
 
-  // Render each slide object
+  // Render each slide object (pass slide for image media lookup)
   for (const obj of (slide._slideObjects || [])) {
-    const child = renderSlideObj(obj, slideW, slideH, scale);
+    const child = renderSlideObj(obj, slideW, slideH, scale, slide);
     if (child) el.appendChild(child);
   }
   return el;
